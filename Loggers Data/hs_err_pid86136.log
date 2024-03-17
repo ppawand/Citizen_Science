@@ -1,0 +1,101 @@
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x0000000101692126, pid=86136, tid=0x0000000000001303
+#
+# JRE version: Java(TM) SE Runtime Environment (8.0_381) (build 1.8.0_381-b09)
+# Java VM: Java HotSpot(TM) 64-Bit Server VM (25.381-b09 mixed mode bsd-amd64 compressed oops)
+# Problematic frame:
+# C  [rsession+0x9e9126]  rstudio_boost::asio::placeholders::bytes_transferred()+0x1b8a36
+#
+# Failed to write core dump. Core dumps have been disabled. To enable core dumping, try "ulimit -c unlimited" before starting Java again
+#
+# If you would like to submit a bug report, please visit:
+#   http://bugreport.java.com/bugreport/crash.jsp
+#
+
+---------------  T H R E A D  ---------------
+
+Current thread is native thread
+
+siginfo: si_signo: 11 (SIGSEGV), si_code: 1 (SEGV_MAPERR), si_addr: 0x0000000000000000
+
+Registers:
+RAX=0x00007f83d83067e0, RBX=0x00007f83da323b50, RCX=0x00007f83d83067e0, RDX=0x0000000000000000
+RSP=0x0000000306e07a80, RBP=0x0000000306e07b10, RSI=0x0000000000000000, RDI=0x0000000000000000
+R8 =0x00000000004d3f85, R9 =0xffffffff00000000, R10=0x0000000000000000, R11=0x0000000000000000
+R12=0x0000000306e07c70, R13=0x0000000306e07cc8, R14=0x0000000101bf5cc8, R15=0x0000000306e07b80
+RIP=0x0000000101692126, EFLAGS=0x0000000000000246, ERR=0x0000000000000006
+  TRAPNO=0x000000000000000e
+
+Top of Stack: (sp=0x0000000306e07a80)
+0x0000000306e07a80:   0000000000000000 00007f82ea004da0
+0x0000000306e07a90:   00007f82ea32d0d0 0000000000000031
+0x0000000306e07aa0:   0000000000000024 00007f82ea0055e0
+0x0000000306e07ab0:   00007f82ea32d0d0 0000000000000000
+0x0000000306e07ac0:   0000000000000000 00007f82ea00d190
+0x0000000306e07ad0:   00007f82ea32d0d0 0000000000000031
+0x0000000306e07ae0:   0000000000000024 00007f82ea00d190
+0x0000000306e07af0:   00007f8303413890 0000000306e07c70
+0x0000000306e07b00:   0000000306e07be0 00007f82ea32d0d0
+0x0000000306e07b10:   0000000306e07bd0 000000010168eb14
+0x0000000306e07b20:   0000000101bc62b8 00007f82ea004da0
+0x0000000306e07b30:   00000000000001d0 00007f82ea329560
+0x0000000306e07b40:   0000000000000031 0000000000000024
+0x0000000306e07b50:   00007f82ea0055b0 00007f82ea32d0d0
+0x0000000306e07b60:   0000000000000031 0000000000000024
+0x0000000306e07b70:   00007f82ea004cf0 00007f82ea32d0d0
+0x0000000306e07b80:   0000000101bcdfe0 00007f82ea005090
+0x0000000306e07b90:   000000010bb67080 000000000000001d
+0x0000000306e07ba0:   0000000101bc62b8 00007f82ea004cc0
+0x0000000306e07bb0:   0000000100000000 000000010bb63000
+0x0000000306e07bc0:   00007f82ea32d1d8 0000000306e07dc8
+0x0000000306e07bd0:   0000000306e07c10 00000001016994be
+0x0000000306e07be0:   0000000000000031 0000000000000024
+0x0000000306e07bf0:   00007f82ea006a90 00007f82ea32d0d0
+0x0000000306e07c00:   00007f83a9709fa0 00007f82ea32d1d8
+0x0000000306e07c10:   0000000306e07c60 0000000101696b08
+0x0000000306e07c20:   0000000101bce130 0000000000000024
+0x0000000306e07c30:   0000000000000000 0000000000000000
+0x0000000306e07c40:   0000000000000000 00007f82ea32d0d0
+0x0000000306e07c50:   0000000306e07dc8 00007f82ea32d1d8
+0x0000000306e07c60:   0000000306e07cb0 00000001016fd655
+0x0000000306e07c70:   0000000000000000 0000000000000000 
+
+Instructions: (pc=0x0000000101692126)
+0x0000000101692106:   30 49 03 76 48 48 39 c1 74 14 48 89 f1 48 c1 e9
+0x0000000101692116:   07 83 e6 7f 48 c1 e6 05 48 03 34 c8 eb 02 31 f6
+0x0000000101692126:   48 c7 06 00 00 00 00 49 8b 07 48 85 c0 74 2d 48
+0x0000000101692136:   89 06 a8 01 75 15 48 83 e0 fe 49 83 c7 08 48 83 
+
+Register to memory mapping:
+
+RAX=0x00007f83d83067e0 is an unknown value
+RBX=0x00007f83da323b50 is an unknown value
+RCX=0x00007f83d83067e0 is an unknown value
+RDX=0x0000000000000000 is an unknown value
+RSP=0x0000000306e07a80 is an unknown value
+RBP=0x0000000306e07b10 is an unknown value
+RSI=0x0000000000000000 is an unknown value
+RDI=0x0000000000000000 is an unknown value
+R8 =0x00000000004d3f85 is an unknown value
+R9 =0xffffffff00000000 is an unknown value
+R10=0x0000000000000000 is an unknown value
+R11=0x0000000000000000 is an unknown value
+R12=0x0000000306e07c70 is an unknown value
+R13=0x0000000306e07cc8 is an unknown value
+R14=0x0000000101bf5cc8: <offset 0xf4ccc8> in /Applications/RStudio.app/Contents/Resources/app/bin/rsession at 0x0000000100ca9000
+R15=0x0000000306e07b80 is an unknown value
+
+
+Stack: [0x0000000306d88000,0x0000000306e08000],  sp=0x0000000306e07a80,  free space=510k
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+C  [rsession+0x9e9126]  rstudio_boost::asio::placeholders::bytes_transferred()+0x1b8a36
+C  [rsession+0x9e5b14]  rstudio_boost::asio::placeholders::bytes_transferred()+0x1b5424
+C  [rsession+0x9f04be]  rstudio_boost::asio::placeholders::bytes_transferred()+0x1bfdce
+C  [rsession+0x9edb08]  rstudio_boost::asio::placeholders::bytes_transferred()+0x1bd418
+C  [rsession+0xa54655]  rstudio_boost::asio::detail::descriptor_write_op_base<rstudio_boost::asio::const_buffers_1>::do_perform(rstudio_boost::asio::detail::reactor_op*)+0x9bb5
+C  [rsession+0x9e8648]  rstudio_boost::asio::placeholders::bytes_transferred()+0x1b7f58
+C  [rsession+0xa54700]  rstudio_boost::asio::detail::descriptor_write_op_base<rstudio_boost::asio::const_buffers_1>::do_perform(rstudio_boost::asio::detail::reactor_op*)+0x9c60
+C  [rsession+0x9e3679]  rstudio_boost::asio::placeholders::bytes_transferred()+0x1b2f89
+C  [rsession+0xb8f551]  rstudio_boost::asio::detail::descriptor_write_op_base<rstudio_boost::asio::const_buffers_1>::do_perform(rstudio_boost::asio::detail::reactor_op*)+0x144ab1
