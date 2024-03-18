@@ -12,7 +12,6 @@ library(emmeans)
 library(glmulti)
 library(factoextra)
 library(vegan)
-library(viridis)
 library(sjPlot)
 
 ##########################
@@ -50,7 +49,7 @@ theme <- theme_bw() +
 # Data import and cleaning
 #####################################
 # importing data 
-nutrients <- read.csv("~/Desktop/GCS/data_updated/nutrients_final_updated_nvg.csv")
+nutrients <- read.csv("~/Desktop/GCS/GCS_git/Data/nutrients_final_updated.csv")
 
 
 # removing mbc data with NAs 
@@ -95,11 +94,7 @@ sapply(mbc_final, class)
 
 ###########################################
 # fame data
-fame <- read.csv("~/Desktop/GCS/data_updated/fame_final_updated_nvg.csv")
-
-# # calculating total microbial biomass by summing up bacterial and fungal biomass 
-# 
-# fame$total.biomass <- fame$BactSum + fame$FungSum
+fame <- read.csv("~/Desktop/GCS/GCS_git/Data/fame_final_updated.csv")
 
 
 # converting into a longer format
@@ -166,7 +161,7 @@ summary(gwc_int)
 
 predict_plot_gwc <-plot_model(gwc_int, type = "pred", term = c("clay", "crop_rotation"))
 
-predict_data_gwc <- as.data.frame(predict_plot$data) %>%
+predict_data_gwc <- as.data.frame(predict_plot_gwc$data) %>%
   rename(crop_rotation = group)
 
 
@@ -190,10 +185,7 @@ predict_data_gwc <- as.data.frame(predict_plot$data) %>%
     theme +
     theme(legend.position = "top"))
 
-# setwd("~/Desktop/GCS/graphs/")
-# 
-# ggsave("Fig3.pdf", gwc_clay, dpi = 400, width = 8, height =6 , units = "in",
-#        device = "pdf")
+
 
 #####################################
 
@@ -387,10 +379,10 @@ predict_data_P <- as.data.frame(predict_plot_P$data) %>%
     theme(legend.position = "top"))
 
 
-ggarrange(N_om + rremove("xlab") + rremove("x.text"),
+(NP_plot <- ggarrange(N_om + rremove("xlab") + rremove("x.text"),
           P_om,
           common.legend = FALSE, labels = "auto", align = "hv", ncol = 1,
-          legend = "right")
+          legend = "right"))
 
 
 ######################################################
@@ -508,22 +500,8 @@ predict_data_OM_gwc <- as.data.frame(predict_plot_OM_gwc$data) %>%
     theme +
     theme(legend.position = "top"))
 
-
-# OM_gwc graph
-
-(om_gwc <- ggplot(nutrients_final, aes(gwc, OM, color = crop_rotation)) +
-  geom_point(size = 3, alpha = 1, aes(shape = tillage)) +
-  geom_smooth(method = "lm", linewidth = 1.5) +
-  scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
-                       values = c(15, 16, 17))+
-  scale_color_manual(labels = c("Continuous Cotton", "Crop Rotation"),
-                       values = c("#606060", "#FF9933")) +
-  labs(y = "Organic matter (%)", x = "Gravimetric water content (g/g)" ) +
-  theme +
-  theme(legend.position = "top"))
-
 # combining both graphs
-ggarrange(om_clay, om_gwc + rremove("ylab") + rremove("y.text"),
+ggarrange(OM_clay, OM_gwc + rremove("ylab") + rremove("y.text"),
           common.legend = TRUE, labels = "auto", align = "hv")
 
 
@@ -624,7 +602,8 @@ pc2 <- paste0("PC2 (", round(prop.expl[5] * 100,1), "%)")
 
 # pca_plot
 
-ggplot(pca_coordinates, aes(PC1, PC2)) + 
+(nutrient_PCA <-
+  ggplot(pca_coordinates, aes(PC1, PC2)) + 
   geom_hline(yintercept = 0, lty = "dashed") +
   geom_vline(xintercept = 0, lty = "dashed") +
   geom_point(size = 3, alpha = 0.7, aes(shape = tillage, color = residue)) +
@@ -639,7 +618,7 @@ ggplot(pca_coordinates, aes(PC1, PC2)) +
                      values = c("#131E3A", "#980019")) +
   labs(x = pc1, y = pc2) +
   theme +
-  theme(legend.position = "top")
+  theme(legend.position = "top"))
 
 
 ###########################################
@@ -707,36 +686,83 @@ hist(residuals(best_mbc_model_2))
 summary(best_mbc_model_2)
 
 ##########################################################
+# post hoc analysis to check the interaction effect between residue and gwc
+
+mbc_int_gwc <- lmer(mbc ~ residue * gwc + (1|field) + (1|sampling.period),
+               data = mbc_new)
+Anova(mbc_int_gwc)
+summary(mbc_int_gwc)
+
+(predict_plot_mbc_gwc <-plot_model(mbc_int_gwc, type = "pred",
+                                  term = c("gwc", "residue")))
+
+predict_data_mbc_gwc <- as.data.frame(predict_plot_mbc_gwc$data) %>%
+  rename(residue = group)
 
 (mbc_gwc <- ggplot(mbc_new, aes(gwc, mbc, color = residue)) +
   geom_point(size = 3, alpha = 1, aes(shape = tillage)) +
-  geom_smooth(method = "lm", linewidth = 1.5) +
+  geom_line(data = predict_data_mbc_gwc, aes(x = x, y = predicted),
+              linewidth = 1.5) +
+  geom_ribbon(data = predict_data_mbc_gwc, aes(x = x, ymin = conf.low, ymax = conf.high,
+                                                fill = residue), inherit.aes = F,
+                alpha = 0.3  ) +
   scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
                      values = c(15, 16, 17))+
   scale_color_manual(labels = c("None-Low","Medium-High"),
                      values = c("#131E3A", "#980019")) +
+  scale_fill_manual(labels = c("None-Low","Medium-High"),
+                       values = c("#131E3A", "#980019")) +
   labs(y = expression("Microbial Biomass Carbon (mg" *~kg^-1*")"),
        x = expression("Gravimetric water content (g" *~g^-1*")"))+
   theme +
   theme(legend.position = "top"))
 
 
-ggplot(mbc_new, aes(clay, mbc, color = residue)) +
+# post hoc analysis to check the interaction effect between residue and clay
+
+mbc_int_clay <- lmer(mbc ~ residue * clay + (1|field) + (1|sampling.period),
+                    data = mbc_new)
+Anova(mbc_int_clay)
+summary(mbc_int_clay)
+
+(predict_plot_mbc_clay <-plot_model(mbc_int_clay, type = "pred",
+                                   term = c("clay", "residue")))
+
+predict_data_mbc_clay <- as.data.frame(predict_plot_mbc_clay$data) %>%
+  rename(residue = group)
+
+
+(mbc_clay <- 
+  ggplot(mbc_new, aes(clay, mbc, color = residue)) +
   geom_point(size = 3, alpha = 1, aes(shape = tillage)) +
-  geom_smooth(method = "lm", linewidth = 1.5) +
+  geom_line(data = predict_data_mbc_clay, aes(x = x, y = predicted),
+            linewidth = 1.5) +
+  geom_ribbon(data = predict_data_mbc_clay, aes(x = x, ymin = conf.low, ymax = conf.high,
+                                               fill = residue), inherit.aes = F,
+              alpha = 0.3  ) +
   scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
                      values = c(15, 16, 17))+
   scale_color_manual(labels = c("None-Low","Medium-High"),
                      values = c("#131E3A", "#980019")) +
+  scale_fill_manual(labels = c("None-Low","Medium-High"),
+                     values = c("#131E3A", "#980019")) +
   labs(y = expression("Microbial Biomass Carbon (mg" *~kg^-1*")"),
        x = "Clay (%)" ) +
   theme +
-  theme(legend.position = "top")
+  theme(legend.position = "top"))
+
+# combining both plots
+ ggarrange(mbc_gwc,
+           mbc_clay + rremove("ylab") + rremove("y.text"),
+           common.legend = TRUE,
+           labels = "auto", align = "hv")
+
+
 
 ################################################################################
 # PCA of nutrients on fame dataset
 
-# averaging FAME data by field and sanpling period
+# averaging FAME data by field and sampling period
 
 fame_average <- fame_final %>% 
   group_by(field, sampling.period,microbial.groups, tillage, irrigation, fertilizer, crop_rotation, 
@@ -821,11 +847,32 @@ plot(best_fame_model_2)
 hist(residuals(best_fame_model_2))
 summary(best_fame_model_2)
 
+# post hoc analysis to check the interaction effect between crop rotation and OM
+
+tfame_int_OM <- lmer(fame ~ crop_rotation * OM + (1|field) + (1|sampling.period),
+                     data = total_fame)
+Anova(tfame_int_OM)
+summary(tfame_int_OM)
+
+(predict_plot_tfame_OM <-plot_model(tfame_int_OM, type = "pred",
+                                    term = c("OM", "crop_rotation")))
+
+predict_data_tfame_OM <- as.data.frame(predict_plot_tfame_OM$data) %>%
+  rename(crop_rotation = group)
+
+
+
 # OM and fame graph
 
 (tfame_om <- ggplot(total_fame, aes(OM, fame, color = crop_rotation)) +
   geom_point(size = 3, alpha = 1, aes(shape = tillage)) +
-  geom_smooth(method = "lm", linewidth = 1.5) +
+  geom_line(data = predict_data_tfame_OM, aes(x = x, y = predicted),
+              linewidth = 1.5) +
+  geom_ribbon(data = predict_data_tfame_OM, aes(x = x, ymin = conf.low, ymax = conf.high,
+                                                  fill = crop_rotation), inherit.aes = F,
+                alpha = 0.3  ) +
+  scale_fill_manual(labels = c("Continuous Cotton", "Crop Rotation"),
+                       values = c("#606060", "#FF9933")) +
   scale_color_manual(labels = c("Continuous Cotton", "Crop Rotation"),
                      values = c("#606060", "#FF9933"))+
   scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
@@ -835,10 +882,33 @@ summary(best_fame_model_2)
   theme +
   theme(legend.position = "top"))
 
+# post hoc analysis to check the interaction effect between crop rotation and gwc
+
+tfame_int_gwc <- lmer(fame ~ crop_rotation * gwc + (1|field) + (1|sampling.period),
+                     data = total_fame)
+Anova(tfame_int_gwc)
+summary(tfame_int_gwc)
+
+(predict_plot_tfame_gwc <-plot_model(tfame_int_gwc, type = "pred",
+                                    term = c("gwc", "crop_rotation")))
+
+predict_data_tfame_gwc <- as.data.frame(predict_plot_tfame_gwc$data) %>%
+  rename(crop_rotation = group)
+
+
+
+
 # total fame and gwc
  (tfame_gwc <- ggplot(total_fame, aes(gwc, fame, color = crop_rotation)) +
     geom_point(size = 3, alpha = 1, aes(shape = tillage)) +
-    geom_smooth(method = "lm", linewidth = 1.5) +
+   
+    geom_line(data = predict_data_tfame_gwc, aes(x = x, y = predicted),
+               linewidth = 1.5) +
+    geom_ribbon(data = predict_data_tfame_gwc, aes(x = x, ymin = conf.low, ymax = conf.high,
+                                                   fill = crop_rotation), inherit.aes = F,
+                 alpha = 0.3  ) +
+    scale_fill_manual(labels = c("Continuous Cotton", "Crop Rotation"),
+                       values = c("#606060", "#FF9933")) +     
     scale_color_manual(labels = c("Continuous Cotton", "Crop Rotation"),
                         values = c("#606060", "#FF9933"))+
     scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
@@ -900,11 +970,31 @@ plot(best_bacteria_model_2)
 hist(residuals(best_bacteria_model_2))
 summary(best_bacteria_model_2)
 
-# OM and bacterial fame graph
 
+
+# post hoc analysis to check the interaction effect between crop rotation and clay
+
+bacteria_int_OM <- lmer(fame ~ crop_rotation * OM + (1|field) + (1|sampling.period),
+                     data = bacteria_fame)
+Anova(bacteria_int_OM)
+summary(bacteria_int_OM)
+
+(predict_plot_bacteria_OM <-plot_model(bacteria_int_OM, type = "pred",
+                                    term = c("OM", "crop_rotation")))
+
+predict_data_bacteria_OM <- as.data.frame(predict_plot_bacteria_OM$data) %>%
+  rename(crop_rotation = group)
+
+# OM and bacterial fame graph
 (bfame_om <- ggplot(bacteria_fame, aes(OM, fame, color = crop_rotation)) +
   geom_point(size = 3, alpha = 1, aes(shape = tillage)) +
-  geom_smooth(method = "lm", linewidth = 1.5) +
+  geom_line(data = predict_data_bacteria_OM, aes(x = x, y = predicted),
+              linewidth = 1.5) +
+  geom_ribbon(data = predict_data_bacteria_OM, aes(x = x, ymin = conf.low, ymax = conf.high,
+                                                  fill = crop_rotation), inherit.aes = F,
+                alpha = 0.3  ) +
+  scale_fill_manual(labels = c("Continuous Cotton", "Crop Rotation"),
+                      values = c("#606060", "#FF9933")) +
   scale_color_manual(labels = c("Continuous Cotton", "Crop Rotation"),
                      values = c("#606060", "#FF9933"))+
   scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
@@ -964,11 +1054,32 @@ plot(best_fungi_model_2)
 hist(residuals(best_fungi_model_2))
 summary(best_fungi_model_2)
 
+
+# post hoc analysis to check the interaction effect between crop_rotation and OM
+
+fungi_int_OM <- lmer(fame ~ crop_rotation* OM + (1|field) + (1|sampling.period),
+                     data = fungi_fame)
+Anova(fungi_int_OM)
+summary(fungi_int_OM)
+
+(predict_plot_fungi_OM <-plot_model(fungi_int_OM, type = "pred",
+                                    term = c("OM", "crop_rotation")))
+
+predict_data_fungi_OM <- as.data.frame(predict_plot_fungi_OM$data) %>%
+  rename(crop_rotation = group)
+
+
 # OM and fungi fame graph
 
 (ffungi_om <- ggplot(fungi_fame, aes(OM, fame, color = crop_rotation)) +
   geom_point(size = 3, alpha = 1, aes(shape = tillage)) +
-  geom_smooth(method = "lm", linewidth = 1.5) +
+  geom_line(data = predict_data_fungi_OM, aes(x = x, y = predicted),
+              linewidth = 1.5) +
+  geom_ribbon(data = predict_data_fungi_OM, aes(x = x, ymin = conf.low, ymax = conf.high,
+                                                  fill = crop_rotation), inherit.aes = F,
+                alpha = 0.3  ) +
+  scale_fill_manual(labels = c("Continuous Cotton", "Crop Rotation"),
+                      values = c("#606060", "#FF9933")) +
   scale_color_manual(labels = c("Continuous Cotton", "Crop Rotation"),
                        values = c("#606060", "#FF9933"))+
   scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
@@ -978,10 +1089,31 @@ summary(best_fungi_model_2)
   theme +
   theme(legend.position = "top"))
 
+
+# post hoc analysis to check the interaction effect between crop rotation and gwc
+
+fungi_int_gwc <- lmer(fame ~ crop_rotation * gwc + (1|field) + (1|sampling.period),
+                     data = fungi_fame)
+Anova(fungi_int_gwc)
+summary(fungi_int_gwc)
+
+(predict_plot_fungi_gwc <-plot_model(fungi_int_gwc, type = "pred",
+                                    term = c("gwc", "crop_rotation")))
+
+predict_data_fungi_gwc <- as.data.frame(predict_plot_fungi_gwc$data) %>%
+  rename(crop_rotation = group)
+
+
 # gwc and fungi fame graph
 (ffungi_gwc <- ggplot(fungi_fame, aes(gwc, fame, color = crop_rotation)) +
   geom_point(size = 3, alpha = 1, aes(shape = tillage)) +
-  geom_smooth(method = "lm", linewidth = 1.5) +
+  geom_line(data = predict_data_fungi_gwc, aes(x = x, y = predicted),
+              linewidth = 1.5) +
+  geom_ribbon(data = predict_data_fungi_gwc, aes(x = x, ymin = conf.low, ymax = conf.high,
+                                                  fill = crop_rotation), inherit.aes = F,
+                alpha = 0.3  ) +
+  scale_fill_manual(labels = c("Continuous Cotton", "Crop Rotation"),
+                      values = c("#606060", "#FF9933")) +
   scale_color_manual(labels = c("Continuous Cotton", "Crop Rotation"),
                        values = c("#606060", "#FF9933")) +
   scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
@@ -1018,7 +1150,8 @@ levels(fame_new$microbial.groups) <-  c("Bacteria", "G+ Bacteria",
                                         "Saprophytic Fungi", "AMF", "Protozoa",
                                         "FB Ratio", "Total FAME")
 
-ggplot(fame_new, aes(tillage, mean.fame, fill = irrigation)) +
+(microbes_barplot<-
+  ggplot(fame_new, aes(tillage, mean.fame, fill = irrigation)) +
   geom_col(position = position_dodge(preserve = "single"),
             width = 0.9) +
   scale_fill_brewer(palette = "Set1",
@@ -1030,7 +1163,7 @@ ggplot(fame_new, aes(tillage, mean.fame, fill = irrigation)) +
   labs(y = expression("FAME (nmol" *~g^-1*")"), x = NULL) +
   scale_x_discrete(labels = c("No-till", "Minimal-till", "Till")) +
   theme +
-  theme(legend.position = "top")
+  theme(legend.position = "top"))
 
 
 # AMF
@@ -1071,13 +1204,31 @@ plot(best_AMF_model_2)
 hist(residuals(best_AMF_model_2))
 summary(best_AMF_model_2)
 
+# post hoc analysis to check the interaction effect between crop_rotation and gwc
+
+AMF_int_gwc <- lmer(fame ~ crop_rotation * gwc + (1|field) + (1|sampling.period),
+                     data = AMF_fame)
+Anova(AMF_int_gwc)
+summary(AMF_int_gwc)
+
+(predict_plot_AMF_gwc <-plot_model(AMF_int_gwc, type = "pred",
+                                    term = c("gwc", "crop_rotation")))
+
+predict_data_AMF_gwc <- as.data.frame(predict_plot_AMF_gwc$data) %>%
+  rename(crop_rotation = group)
 
 
 # AMF and gwc graph
 
 (AMF_gwc <- ggplot(AMF_fame, aes(gwc, fame, color = crop_rotation)) +
     geom_point(size = 3, alpha = 1, aes(shape = tillage)) +
-    geom_smooth(method = "lm", linewidth = 1.5) +
+    geom_line(data = predict_data_AMF_gwc, aes(x = x, y = predicted),
+              linewidth = 1.5) +
+    geom_ribbon(data = predict_data_AMF_gwc, aes(x = x, ymin = conf.low, ymax = conf.high,
+                                                  fill = crop_rotation), inherit.aes = F,
+                alpha = 0.3  ) +
+    scale_fill_manual(labels = c("Continuous Cotton", "Crop Rotation"),
+                      values = c("#606060", "#FF9933")) +
     scale_color_manual(labels = c("Continuous Cotton", "Crop Rotation"),
                        values = c("#606060", "#FF9933")) +
     scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
@@ -1201,7 +1352,7 @@ plt_tillage <- gg_ordiplot(nmds_result, groups = fame_new$tillage,
 tillage_centroid <- plt_tillage$df_mean.ord
 tillage_ellipse <- plt_tillage$df_ellipse
 
-nmds_tilllage <-
+nmds_tillage <-
   ggplot() +
   geom_point(data = tillage_centroid, aes(x, y, color = Group), size = 6) +
   # geom_hline(yintercept = 0, lty = "dashed") +
@@ -1218,50 +1369,50 @@ nmds_tilllage <-
   scale_x_continuous(limits = c(-0.15, 0.15)) +
   labs(x = "NMDS1", y = "NMDS2") +
   theme + 
-  theme(legend.position = "top");nmds_tilllage
+  theme(legend.position = "top");nmds_tillage
 
 
-# NMDS ordination plot
-
-nmds_irri <- ggplot(nmds_scores, aes(NMDS1, NMDS2)) +
-  geom_point(size = 3, aes(color = irrigation), alpha = 0.6) +
-  geom_hline(yintercept = 0, lty = "dashed") +
-  geom_vline(xintercept = 0, lty = "dashed") +
-  geom_segment(data = nmds_loadings, aes( x = 0, xend = NMDS1, y = 0, yend = NMDS2),
-               arrow = arrow(length = unit(0.15, "inches")), color = "black",
-               linewidth = 1.2) +
-  stat_ellipse(aes(color = irrigation), linewidth = 1) +
-  geom_text(data = nmds_loadings, aes(NMDS1, NMDS2, label = groups), 
-            vjust = "outward",  hjust = "outward", fontface = "bold", color = "black") +
-  scale_color_manual(labels = c("Dryland","Irrigated"),
-                    values = c("red", "blue"))  +
-  scale_y_continuous(limits = c(-0.15, 0.15)) +
-  scale_x_continuous(limits = c(-0.15, 0.15)) +
-  theme + 
-  theme(legend.position = "top")
-  
-
-
-nmds_till <- ggplot(nmds_scores, aes(NMDS1, NMDS2)) +
-  geom_point(size = 3, aes(color = tillage), alpha = 0.6) +
-  geom_hline(yintercept = 0, lty = "dashed") +
-  geom_vline(xintercept = 0, lty = "dashed") +
-  geom_segment(data = nmds_loadings, aes( x = 0, xend = NMDS1, y = 0, yend = NMDS2),
-               arrow = arrow(length = unit(0.15, "inches")), color = "black",
-               linewidth = 1.2) +
-  stat_ellipse(aes(color = tillage), linewidth = 1) +
-  geom_text(data = nmds_loadings, aes(NMDS1, NMDS2, label = groups), 
-            vjust = "outward",  hjust = "outward", fontface = "bold", color = "black") +
-  scale_color_manual(labels =  c("Minimal-till", "No-till","Till"),
-                     values = c("#000000","#660099", "#880000")) +
-  scale_y_continuous(limits = c(-0.15, 0.15)) +
-  scale_x_continuous(limits = c(-0.15, 0.15)) +
-  theme + 
-  theme(legend.position = "top")
+# # NMDS ordination plot
+# 
+# nmds_irri <- ggplot(nmds_scores, aes(NMDS1, NMDS2)) +
+#   geom_point(size = 3, aes(color = irrigation), alpha = 0.6) +
+#   geom_hline(yintercept = 0, lty = "dashed") +
+#   geom_vline(xintercept = 0, lty = "dashed") +
+#   geom_segment(data = nmds_loadings, aes( x = 0, xend = NMDS1, y = 0, yend = NMDS2),
+#                arrow = arrow(length = unit(0.15, "inches")), color = "black",
+#                linewidth = 1.2) +
+#   stat_ellipse(aes(color = irrigation), linewidth = 1) +
+#   geom_text(data = nmds_loadings, aes(NMDS1, NMDS2, label = groups), 
+#             vjust = "outward",  hjust = "outward", fontface = "bold", color = "black") +
+#   scale_color_manual(labels = c("Dryland","Irrigated"),
+#                     values = c("red", "blue"))  +
+#   scale_y_continuous(limits = c(-0.15, 0.15)) +
+#   scale_x_continuous(limits = c(-0.15, 0.15)) +
+#   theme + 
+#   theme(legend.position = "top")
+#   
+# 
+# 
+# nmds_till <- ggplot(nmds_scores, aes(NMDS1, NMDS2)) +
+#   geom_point(size = 3, aes(color = tillage), alpha = 0.6) +
+#   geom_hline(yintercept = 0, lty = "dashed") +
+#   geom_vline(xintercept = 0, lty = "dashed") +
+#   geom_segment(data = nmds_loadings, aes( x = 0, xend = NMDS1, y = 0, yend = NMDS2),
+#                arrow = arrow(length = unit(0.15, "inches")), color = "black",
+#                linewidth = 1.2) +
+#   stat_ellipse(aes(color = tillage), linewidth = 1) +
+#   geom_text(data = nmds_loadings, aes(NMDS1, NMDS2, label = groups), 
+#             vjust = "outward",  hjust = "outward", fontface = "bold", color = "black") +
+#   scale_color_manual(labels =  c("Minimal-till", "No-till","Till"),
+#                      values = c("#000000","#660099", "#880000")) +
+#   scale_y_continuous(limits = c(-0.15, 0.15)) +
+#   scale_x_continuous(limits = c(-0.15, 0.15)) +
+#   theme + 
+#   theme(legend.position = "top")
 
 
 (nmds_graphs <- ggarrange(nmds_irri,
-          nmds_till,
+          nmds_tillage + rremove("ylab") + rremove("y.text"),
           common.legend = F,
           ncol = 2,
           labels = "auto",
@@ -1277,7 +1428,30 @@ adonis_result
 
 
 
-# plots
+# Graphs for the paper
+setwd("~/Desktop/GCS/graphs/")
+
+Fig_4 <- ggsave("Fig4.pdf", gwc_clay, dpi = 300, width = 8, height =6 ,
+                units = "in", device = "pdf")
+
+(OM_combined <- ggarrange(OM_clay, OM_gwc + rremove("ylab") + rremove("y.text"),
+                common.legend = TRUE, labels = "auto", align = "hv"))
+
+Fig_5 <- ggsave("Fig5.pdf", OM_combined, dpi = 300, width = 12, height = 6 ,
+                units = "in", device = "pdf")
+
+(OM_management_combined <- ggarrange(om_tillage + rremove("xlab"),
+          om_cr + rremove("ylab") + rremove("y.text") + rremove("xlab"),
+          om_irrigation + rremove("xlab"),
+          om_cc + rremove("ylab") + rremove("y.text") + rremove("xlab"),
+          common.legend = TRUE, labels = "auto", align = "hv"))
+
+Fig_6 <- ggsave("Fig6.pdf", OM_management_combined, dpi = 300, width = 8,
+                height = 6 , units = "in", device = "pdf")
+
+
+Fig_7 <- ggsave("Fig7.pdf", microbes_barplot, dpi = 300, width = 15, height = 8,
+                units = "in", device = "pdf")
 
 (fame_graphs <- ggarrange(tfame_gwc,
                           ffungi_gwc,
@@ -1289,48 +1463,70 @@ adonis_result
                           align = "hv",
                           labels = "auto"))
 
-ggsave("Fig8.pdf", fame_graphs, dpi = 400, width = 15, height =8 , units = "in",
-       device = "pdf")
+Fig_8 <- ggsave("Fig8.pdf", fame_graphs, dpi = 300, width = 15, height =8 ,
+                units = "in", device = "pdf")
 
 
-##############################
-# extra plots
+Fig_9 <- ggsave("Fig9.pdf", nmds_graphs, dpi = 300, width = 12, height =6 ,
+                units = "in", device = "pdf")
 
-# OM-clay graph by tillage
+# Supplemental Graphs
 
-(om_clay <- ggplot(nutrients_final, aes(clay, OM, color = tillage)) +
-   geom_point(size = 3, alpha = 1, aes(shape = crop_rotation)) +
-   geom_smooth(method = "lm", linewidth = 1.5) +
-   scale_color_manual(labels =  c("No-till", "Minimal-till","Till"),
-                      values = c("#000000","#660099", "#880000"))+
-   scale_shape_manual(labels = c("Continuous Cotton", "Crop Rotation"),
-                      values = c(15, 16)) +
-   labs(y = "Organic matter (%)", x = "Clay (%)" ) +
-   theme +
-   theme(legend.position = "top"))
+S2 <- ggsave("S2.pdf", NP_plot, dpi = 300, width = 10, height =8 ,
+             units = "in", device = "pdf")
+S3 <- ggsave("S3.pdf", nutrient_PCA, dpi = 300, width = 8, height = 6 ,
+             units = "in", device = "pdf")
 
-# OM_gwc
+mbc_combined <- 
+  ggarrange(mbc_gwc,
+          mbc_clay + rremove("ylab") + rremove("y.text"),
+          common.legend = TRUE,
+          labels = "auto", align = "hv")
 
-(om_gwc <- ggplot(nutrients_final, aes(gwc, OM, color = tillage)) +
-    geom_point(size = 3, alpha = 1, aes(shape = crop_rotation)) +
-    geom_smooth(method = "lm", linewidth = 1.5) +
-    scale_color_manual(labels =  c("No-till", "Minimal-till","Till"),
-                       values = c("#000000","#660099", "#880000"))+
-    scale_shape_manual(labels = c("Continuous Cotton", "Crop Rotation"),
-                       values = c(15, 16)) +
-    labs(y = "Organic matter (%)", x = "Gravimetric water content (g/g)" ) +
-    theme +
-    theme(legend.position = "top"))
+S4 <- ggsave("S4.pdf", mbc_combined, dpi = 300, width = 12, height = 6 ,
+             units = "in", device = "pdf")
 
 
-ggarrange(om_clay, om_gwc + rremove("ylab") + rremove("y.text"),
-          common.legend = TRUE, labels = "auto", align = "hv")
 
 
-ggarrange(om_gwc + rremove("xlab") + rremove("x.text"),
-          tfame_gwc + rremove("xlab") + rremove("x.text"),
-          ffungi_gwc,
-          AMF_gwc, 
-          common.legend = T,
-          align = "hv",
-          labels = "auto")
+# ##############################
+# # extra plots
+# 
+# # OM-clay graph by tillage
+# 
+# (om_clay <- ggplot(nutrients_final, aes(clay, OM, color = tillage)) +
+#    geom_point(size = 3, alpha = 1, aes(shape = crop_rotation)) +
+#    geom_smooth(method = "lm", linewidth = 1.5) +
+#    scale_color_manual(labels =  c("No-till", "Minimal-till","Till"),
+#                       values = c("#000000","#660099", "#880000"))+
+#    scale_shape_manual(labels = c("Continuous Cotton", "Crop Rotation"),
+#                       values = c(15, 16)) +
+#    labs(y = "Organic matter (%)", x = "Clay (%)" ) +
+#    theme +
+#    theme(legend.position = "top"))
+# 
+# # OM_gwc
+# 
+# (om_gwc <- ggplot(nutrients_final, aes(gwc, OM, color = tillage)) +
+#     geom_point(size = 3, alpha = 1, aes(shape = crop_rotation)) +
+#     geom_smooth(method = "lm", linewidth = 1.5) +
+#     scale_color_manual(labels =  c("No-till", "Minimal-till","Till"),
+#                        values = c("#000000","#660099", "#880000"))+
+#     scale_shape_manual(labels = c("Continuous Cotton", "Crop Rotation"),
+#                        values = c(15, 16)) +
+#     labs(y = "Organic matter (%)", x = "Gravimetric water content (g/g)" ) +
+#     theme +
+#     theme(legend.position = "top"))
+# 
+# 
+# ggarrange(om_clay, om_gwc + rremove("ylab") + rremove("y.text"),
+#           common.legend = TRUE, labels = "auto", align = "hv")
+# 
+# 
+# ggarrange(om_gwc + rremove("xlab") + rremove("x.text"),
+#           tfame_gwc + rremove("xlab") + rremove("x.text"),
+#           ffungi_gwc,
+#           AMF_gwc, 
+#           common.legend = T,
+#           align = "hv",
+#           labels = "auto")
