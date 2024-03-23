@@ -247,7 +247,8 @@ monthly.avg.scaled <-
 monthly.scaled <- 
   monthly.avg.scaled %>% 
   pivot_wider(names_from = measurement,
-              values_from = c(mean.value, min.value, max.value, range, nDays))
+              values_from = c(mean.value, min.value, max.value, range, nDays)) %>%
+  drop_na()
 
 # Shorten the column names (e.g. min.value_Temperature becomes min.Temperature)
 names(monthly.scaled) <- gsub("value_", "", names(monthly.scaled))
@@ -411,40 +412,30 @@ VWC.irrigation <- monthly.avg.VWC %>%
           align = "hv"))
 
 
-Fig_3 <- ggsave("Fig3.pdf", VWC_combined, dpi = 300, width = 15, height = 6 ,
-                units = "in", device = "pdf")
 
 # DTR vs moisture graph
 
-monthly.avg.wide <- monthly.avg %>%
-  pivot_wider(names_from = measurement,
-              values_from = c(mean.value, range))
 
-x <- na.omit(monthly.avg.wide$mean.value_VWC)
-Q1_x <- quantile(x, .25)
-Q3_x <- quantile(x, .75)
-IQR_x <- IQR(x)
-x <- subset(x, x > (Q1_x - 1.5*IQR_x) & x < (Q3_x + 1.5*IQR_x))
-length(x)
-
-y = na.omit(monthly.avg.wide$range_Temperature)  
-length(y)
-Q1_y <- quantile(y, .25)
-Q3_y <- quantile(y, .75)
-IQR_y <- IQR(y)
-y <- subset(y, y > (Q1_y - 1.5*IQR_y) & y < (Q3_y + 1.5*IQR_y))
-length(y)
-
-x <- x[1:length(y)]
-length(x)
-
-ggplot(data = NULL, aes(x, y)) +
-  geom_point() +
+(Dtr <- ggplot(monthly.scaled, aes(x = mean.VWC, y = range_Temperature, color = irrigated)) +
+  geom_point(size = 3, alpha = 1) +
   geom_smooth(method = "lm") +
-  labs(x = "VWC",
-       y = "DTR") +
-  theme
+  facet_wrap(~depth,
+             labeller = labeller(depth = c("0" = "0 cm", "15" = "15 cm"))) +
+  scale_color_manual(labels = c("Dryland", "Irrigated"),
+                     values = c("#FF0000", "#0000FF")) +
+  labs(x = expression("VWC ("*m^3/m^3*")"), 
+       y = expression("DTR ("*~degree*C*")"))+
+  theme)
 
+
+# Saving the graphs
+
+setwd("~/Desktop/GCS/graphs/")
+
+Fig_3 <- ggsave("Fig3.pdf", VWC_combined, dpi = 300, width = 15, height = 6 ,
+                units = "in", device = "pdf")
+Fig_S1 <- ggsave("S1.pdf", Dtr, dpi = 300, width = 12, height = 6 ,
+                units = "in", device = "pdf")
 
 
 

@@ -368,9 +368,9 @@ predict_data_P <- as.data.frame(predict_plot_P$data) %>%
                                            fill = irrigation), inherit.aes = F,
                 alpha = 0.3  ) +
     scale_color_manual(labels = c("Dryland", "Irrigated"),
-                       values = c("red", "blue")) +
+                       values = c("#FF0000", "#0000FF")) +
     scale_fill_manual(labels = c("Dryland", "Irrigated"),
-                      values = c("red", "blue")) +
+                      values = c("#FF0000", "#0000FF")) +
     scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
                        values = c(15, 16, 17)) +
     labs(y = "Total Phosphorus (kg/ha)",
@@ -1338,7 +1338,7 @@ nmds_irri <-
     geom_text(data = nmds_loadings, aes(NMDS1, NMDS2, label = groups), 
               vjust = "outward",  hjust = "outward", color = "black") +
     scale_color_manual(labels = c("Dryland","Irrigated"),
-                       values = c("red", "blue"))  +
+                       values = c("#FF0000", "#0000FF"))  +
     scale_y_continuous(limits = c(-0.15, 0.15)) +
     scale_x_continuous(limits = c(-0.15, 0.15)) +
     labs(x = "NMDS1", y = "NMDS2") +
