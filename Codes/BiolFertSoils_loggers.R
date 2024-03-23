@@ -14,8 +14,8 @@ library(ggplot2)
 library(ggpubr)
 
 # Folder path containing logger data
-logger.path <- "~/Desktop/GCS/DataForPaper/"
-setwd("~/Desktop/GCS/DataForPaper")
+logger.path <- "~/Desktop/GCS/GCS_git/Loggers Data/"
+setwd("~/Desktop/GCS/GCS_git/Loggers Data/")
 
 ################################################################
 # FUNCTIONS
@@ -403,11 +403,50 @@ VWC.irrigation <- monthly.avg.VWC %>%
   theme(legend.position = "top"))
 
 
-ggarrange(a + rremove("xlab"),
+(VWC_combined <- ggarrange(a + rremove("xlab"),
           c + rremove("xlab") + rremove("ylab") + rremove("y.text"), 
           b + rremove("xlab") + rremove("ylab") + rremove("y.text"),
           labels = "auto",
           ncol = 3,
-          align = "h")
+          align = "hv"))
+
+
+Fig_3 <- ggsave("Fig3.pdf", VWC_combined, dpi = 300, width = 15, height = 6 ,
+                units = "in", device = "pdf")
+
+# DTR vs moisture graph
+
+monthly.avg.wide <- monthly.avg %>%
+  pivot_wider(names_from = measurement,
+              values_from = c(mean.value, range))
+
+x <- na.omit(monthly.avg.wide$mean.value_VWC)
+Q1_x <- quantile(x, .25)
+Q3_x <- quantile(x, .75)
+IQR_x <- IQR(x)
+x <- subset(x, x > (Q1_x - 1.5*IQR_x) & x < (Q3_x + 1.5*IQR_x))
+length(x)
+
+y = na.omit(monthly.avg.wide$range_Temperature)  
+length(y)
+Q1_y <- quantile(y, .25)
+Q3_y <- quantile(y, .75)
+IQR_y <- IQR(y)
+y <- subset(y, y > (Q1_y - 1.5*IQR_y) & y < (Q3_y + 1.5*IQR_y))
+length(y)
+
+x <- x[1:length(y)]
+length(x)
+
+ggplot(data = NULL, aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(x = "VWC",
+       y = "DTR") +
+  theme
+
+
+
+
 
 
