@@ -1437,17 +1437,22 @@ Fig_4 <- ggsave("Fig4.pdf", gwc_clay, dpi = 300, width = 8, height =6 ,
 (OM_combined <- ggarrange(OM_clay, OM_gwc + rremove("ylab") + rremove("y.text"),
                 common.legend = TRUE, labels = "auto", align = "hv"))
 
-Fig_5 <- ggsave("Fig5.pdf", OM_combined, dpi = 300, width = 12, height = 6 ,
+Fig_6 <- ggsave("Fig6.pdf", OM_combined, dpi = 300, width = 12, height = 6 ,
                 units = "in", device = "pdf")
 
 (OM_management_combined <- ggarrange(om_tillage + rremove("xlab"),
           om_cr + rremove("ylab") + rremove("y.text") + rremove("xlab"),
           om_irrigation + rremove("xlab"),
           om_cc + rremove("ylab") + rremove("y.text") + rremove("xlab"),
-          common.legend = TRUE, labels = "auto", align = "hv"))
+          a + rremove("xlab"),
+          b + rremove("xlab") + rremove("ylab") + rremove("y.text"),
+          ncol = 2,
+          nrow = 3,
+          common.legend = TRUE, labels = "auto",
+          align = "hv"))
 
-Fig_6 <- ggsave("Fig6.pdf", OM_management_combined, dpi = 300, width = 8,
-                height = 6 , units = "in", device = "pdf")
+Fig_5 <- ggsave("Fig5.pdf", OM_management_combined, dpi = 300, width = 12,
+                height = 12 , units = "in", device = "pdf")
 
 
 Fig_7 <- ggsave("Fig7.pdf", microbes_barplot, dpi = 300, width = 15, height = 8,
@@ -1485,6 +1490,49 @@ mbc_combined <-
 
 S4 <- ggsave("S4.pdf", mbc_combined, dpi = 300, width = 12, height = 6 ,
              units = "in", device = "pdf")
+
+
+
+# plotiing tillage crop rotation interaction for OM
+
+no_till <- nutrients_final %>%
+  filter(tillage == "no")
+
+cr_model <- lmer(OM ~ crop_rotation + (1|field) + (1|sampling.period),
+                 data = no_till)
+summary(cr_model)
+
+till <- nutrients_final %>%
+  filter(tillage != "no")
+
+(a <- ggplot(as.data.frame(emmeans(cr_model, ~ crop_rotation)), 
+             aes(crop_rotation, emmean)) +
+    geom_violin(data = no_till, aes(x = crop_rotation, y = OM)) +
+    geom_point(size = 3) +
+    geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2) +
+    scale_x_discrete(labels = c("Continuous Cotton", "Crop Rotation")) +
+    labs(y = "Soil organic matter (%)",
+         x = "Crop Rotation") +
+    annotate(geom="text", x= 1.2, y= 2.5, label="No-till", size = 6, fontface = "bold") +
+    theme)
+
+
+
+cr_model2 <- lmer(OM ~ crop_rotation + (1|field) + (1|sampling.period),
+                  data = till)
+summary(cr_model2)
+
+(b <- ggplot(as.data.frame(emmeans(cr_model2, ~ crop_rotation)), 
+             aes(crop_rotation, emmean)) +
+    geom_violin(data = till, aes(x = crop_rotation, y = OM)) +
+    geom_point(size = 3) +
+    geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2) +
+    scale_x_discrete(labels = c("Continuous Cotton", "Crop Rotation")) +
+    labs(y = "Soil organic matter (%)",
+         x = "Crop Rotation") +
+    annotate(geom="text", x= 1.2, y= 2.5, label="Minimal-till or till", size = 6, fontface = "bold") +
+    theme)
+
 
 
 
