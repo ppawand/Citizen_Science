@@ -342,14 +342,18 @@ monthly.avg.VWC <- monthly.avg %>%
 VWC.tillage <- monthly.avg.VWC %>% 
   filter(tillage != "NA") %>% 
   group_by(tillage, depth, month) %>% 
-  summarise(mean.VWC = mean(mean.value))
+  summarise(mean.VWC = mean(mean.value),
+            n = n(),
+            se = sd(mean.value)/sqrt(n))
 
 VWC.tillage$tillage <-factor( VWC.tillage$tillage,
                               levels =  c("no-till", "minimal till", "tillage"))
 
 (a <- ggplot(VWC.tillage, aes(month, mean.VWC)) +
-  geom_point(aes(shape = tillage), size = 3) +
+  geom_point(aes(shape = tillage), size = 2) +
   geom_line(aes(lty = tillage), linewidth = 1) +
+  geom_errorbar(aes(ymin = mean.VWC - se,
+                    ymax = mean.VWC + se), width = 0.05) +
   facet_wrap(~ depth, ncol = 1,
              labeller = labeller(depth = c("0" = "0 cm", "15" = "15 cm"))) +
   scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
@@ -367,12 +371,16 @@ VWC.tillage$tillage <-factor( VWC.tillage$tillage,
 VWC.cr <- monthly.avg.VWC %>% 
   filter(crop.rotation != "NA") %>% 
   group_by(crop.rotation, depth, month) %>% 
-  summarise(mean.VWC = mean(mean.value))
+  summarise(mean.VWC = mean(mean.value),
+            n = n(),
+            se = sd(mean.value)/sqrt(n))
 
 
 (b <- ggplot(VWC.cr, aes(month, mean.VWC, color = crop.rotation)) +
-  geom_point(size = 3) +
+  geom_point(size = 2) +
   geom_line(linewidth = 1) +
+  geom_errorbar(aes(ymin = mean.VWC - se,
+                      ymax = mean.VWC + se), width = 0.05) +
   facet_wrap(~ depth, ncol = 1,
              labeller = labeller(depth = c("0" = "0 cm", "15" = "15 cm"))) +
   scale_color_manual(labels = c("Continuous Cotton", "Crop Rotation"),
@@ -388,11 +396,15 @@ VWC.cr <- monthly.avg.VWC %>%
 VWC.irrigation <- monthly.avg.VWC %>% 
   filter(irrigated != "NA") %>% 
   group_by(irrigated, depth, month) %>% 
-  summarise(mean.VWC = mean(mean.value))
+  summarise(mean.VWC = mean(mean.value),
+            n = n(),
+            se = sd(mean.value)/sqrt(n))
 
 (c <- ggplot(VWC.irrigation, aes(month, mean.VWC, color = irrigated)) +
-  geom_point(size = 3, alpha = 0.8) +
+  geom_point(size = 2, alpha = 0.8) +
   geom_line(linewidth = 1, alpha = 0.8) +
+  geom_errorbar(aes(ymin = mean.VWC - se,
+                      ymax = mean.VWC + se), width = 0.05) +
   facet_wrap(~ depth, ncol =1,
              labeller = labeller(depth = c("0" = "0 cm", "15" = "15 cm"))) +
   scale_color_manual(labels = c("Dryland", "Irrigated"),
@@ -430,7 +442,7 @@ VWC.irrigation <- monthly.avg.VWC %>%
 
 # Saving the graphs
 
-setwd("~/Desktop/GCS/graphs/")
+setwd("~/Desktop/GCS/")
 
 Fig_3 <- ggsave("Fig3.pdf", VWC_combined, dpi = 300, width = 15, height = 6 ,
                 units = "in", device = "pdf")

@@ -13,6 +13,8 @@ library(glmulti)
 library(factoextra)
 library(vegan)
 library(sjPlot)
+library(ggordiplots)
+library(MuMIn)
 
 ##########################
 # wrapper function for glmulti
@@ -50,6 +52,8 @@ theme <- theme_bw() +
 #####################################
 # importing data 
 nutrients <- read.csv("~/Desktop/GCS/GCS_git/Data/nutrients_final_updated.csv")
+rotation_type <- read.csv("~/Desktop/GCS/GCS_git/Data/crop_rotation.csv")
+nutrients <- merge(nutrients, rotation_type, by = c("field", "year"))
 
 
 # removing mbc data with NAs 
@@ -64,7 +68,7 @@ mbc_final <- mbc_final %>%
 # averaging mbc data by field and sampling period
 mbc_final <- mbc_final %>% 
   group_by(field, sampling.period, tillage, irrigation, fertilizer, crop_rotation, 
-           cover_crop, residue) %>% 
+           crop_type, cover_crop, residue) %>% 
   summarise(mbc = mean(mbc, na.rm = T),
             clay = mean(clay, na.rm = T),
             gwc = mean(gwc, na.rm = T),
@@ -95,7 +99,7 @@ sapply(mbc_final, class)
 ###########################################
 # fame data
 fame <- read.csv("~/Desktop/GCS/GCS_git/Data/fame_final_updated.csv")
-
+fame <- merge(fame, rotation_type, by = c("field", "year"))
 
 # converting into a longer format
 fame_final <- fame%>% 
@@ -152,17 +156,41 @@ Anova(best_gwc_model_2)
 plot(best_gwc_model_2)
 summary(best_gwc_model_2)
 
+
+# evaluate the effects of crop type  in rotation
+
+
+gwc_rotation <- mbc_final %>%
+  filter(crop_type %in% c("None", "corn", "sorghum", "cereals", "corn-cereals",
+                          "multispecies"))
+gwc_rotation$crop_type <- factor(gwc_rotation$crop_type, 
+                              levels = c("None", "corn", "sorghum", "cereals", 
+                                         "corn-cereals", "multispecies"))
+levels(gwc_rotation$crop_type)
+
+
+gwc_rotation_model <- glmulti(gwc ~ tillage + irrigation + fertilizer + crop_type +
+                                residue + cover_crop,
+                                random1 = "+(1|field)", 
+                              random2 = "+ (1|sampling.period)", data = gwc_rotation,
+                              fitfunction = mixed_glmulti, level = 1, crit = "aicc")
+
+Anova(gwc_rotation_model@objects[[1]])
+summary(gwc_rotation_model@objects[[1]])
+
 # post hoc analysis to check the interaction effect between crop rotation and clay
 
 gwc_int <- lmer(gwc ~ crop_rotation *clay + (1|field) + (1|sampling.period),
      data = mbc_final)
 Anova(gwc_int)
 summary(gwc_int)
+r.squaredGLMM(gwc_int)
 
 predict_plot_gwc <-plot_model(gwc_int, type = "pred", term = c("clay", "crop_rotation"))
 
 predict_data_gwc <- as.data.frame(predict_plot_gwc$data) %>%
   rename(crop_rotation = group)
+
 
 
 # GWC-clay graph
@@ -191,8 +219,8 @@ predict_data_gwc <- as.data.frame(predict_plot_gwc$data) %>%
 
 # averaging nutrients data by field 
 nutrients_final <- nutrients %>% 
-  group_by(field, sampling.period, tillage, irrigation, fertilizer, crop_rotation, 
-           cover_crop, residue) %>% 
+  group_by(field, sampling.period, tillage, irrigation, fertilizer, crop_rotation,
+           crop_type, cover_crop, residue) %>% 
   summarise(clay = mean(clay, na.rm = T),
             gwc = mean(gwc, na.rm = T),
             P = mean(P, na.rm = T),
@@ -261,12 +289,14 @@ plot(best_N_model_2)
 summary(best_N_model_2)
 
 
+
 # post hoc analysis to check the interaction effect between residue and OM
 
 N_int <- lmer(total.N ~ residue * OM + (1|field) + (1|sampling.period),
                 data = nitrogen)
 Anova(N_int)
 summary(N_int)
+r.squaredGLMM(N_int)
 
 (predict_plot_N <-plot_model(N_int, type = "pred", term = c("OM", "residue")))
 
@@ -279,10 +309,10 @@ predict_data_N <- as.data.frame(predict_plot_N$data) %>%
 (N_om <- ggplot(nitrogen, aes(OM, total.N, color = residue)) +
     geom_point(size = 3, alpha = 1, aes(shape = fertilizer)) +
     geom_line(data = predict_data_N, aes(x = x, y = predicted),
-              linewidth = 1.5) +
+              linewidth = 1.5, lty = "dashed") +
     geom_ribbon(data = predict_data_N, aes(x = x, ymin = conf.low, ymax = conf.high,
                                              fill = residue), inherit.aes = F,
-                alpha = 0.3  ) +
+                alpha = 0.3 ) +
     scale_shape_manual(labels = c("Not Fertilized", "Fertilized"),
                        values = c(16, 17)) +
     scale_color_manual(labels = c("None-Low Residue","Medium-High Residue"),
@@ -345,6 +375,9 @@ Anova(best_P_model_2)
 plot(best_P_model_2)
 summary(best_P_model_2)
 
+
+
+
 # post hoc analysis to check the interaction effect between irrigation and OM
 
 P_int <- lmer(P ~ irrigation * OM + (1|field) + (1|sampling.period),
@@ -363,7 +396,7 @@ predict_data_P <- as.data.frame(predict_plot_P$data) %>%
 (P_om <- ggplot(phosphorus, aes(OM, P, color = irrigation)) +
     geom_point(size = 3, alpha = 1, aes(shape = tillage)) +
     geom_line(data = predict_data_P, aes(x = x, y = predicted),
-              linewidth = 1.5) +
+              linewidth = 1.5, lty = "dashed") +
     geom_ribbon(data = predict_data_P, aes(x = x, ymin = conf.low, ymax = conf.high,
                                            fill = irrigation), inherit.aes = F,
                 alpha = 0.3  ) +
@@ -411,11 +444,11 @@ hist(residuals(best_om_model))
 summary(best_om_model)
 
 
-
 # pairwise comparison
 emmm_om_tillage <- emmeans(best_om_model, ~ tillage)
 contrast(emmm_om_tillage, interaction = "pairwise")
 
+emmeans(best_om_model, ~ irrigation)
 
 # OM model with continuous predictors
 
@@ -430,14 +463,36 @@ plot(best_om_model_2)
 hist(residuals(best_om_model_2))
 summary(best_om_model_2)
 
+
+# evaluate the effects of crop type  in rotation
+
+
+nutrients_rotation <- nutrients_final %>%
+  filter(crop_type %in% c("None", "corn", "sorghum", "cereals", "corn-cereals",
+                          "multispecies"))
+nutrients_rotation$crop_type <- factor(nutrients_rotation$crop_type, 
+                                 levels = c("None", "corn", "sorghum", "cereals", 
+                                            "corn-cereals", "multispecies"))
+
+om_rotation_model <- glmulti(OM ~ tillage + irrigation + fertilizer + crop_type +
+                               residue + cover_crop, random1 = "+(1|field)", 
+                              random2 = "+ (1|sampling.period)", data = nutrients_rotation,
+                              fitfunction = mixed_glmulti, level = 1, crit = "aicc")
+
+Anova(om_rotation_model@objects[[1]])
+summary(om_rotation_model@objects[[1]])
+
+emmeans(om_rotation_model@objects[[1]], ~ crop_type)
+
 # post hoc analysis to check the interaction effect between crop rotation and clay
 
 OM_int <- lmer(OM ~ crop_rotation * clay + (1|field) + (1|sampling.period),
                 data = nutrients_final)
 Anova(OM_int)
 summary(OM_int)
+r.squaredGLMM(OM_int)
 
-predict_plot_OM_clay <-plot_model(OM_int, type = "pred", term = c("clay", "crop_rotation"))
+predict_plot_OM_clay <- plot_model(OM_int, type = "pred", term = c("clay", "crop_rotation"))
 
 predict_data_OM_clay <- as.data.frame(predict_plot_OM_clay$data) %>%
   rename(crop_rotation = group)
@@ -472,6 +527,7 @@ OM_int_gwc <- lmer(OM ~ crop_rotation *gwc + (1|field) + (1|sampling.period),
                 data = nutrients_final)
 Anova(OM_int_gwc)
 summary(OM_int_gwc)
+r.squaredGLMM(OM_int_gwc)
 
 (predict_plot_OM_gwc <-plot_model(OM_int_gwc, type = "pred", term = c("gwc", "crop_rotation")))
 
@@ -503,6 +559,7 @@ predict_data_OM_gwc <- as.data.frame(predict_plot_OM_gwc$data) %>%
 # combining both graphs
 ggarrange(OM_clay, OM_gwc + rremove("ylab") + rremove("y.text"),
           common.legend = TRUE, labels = "auto", align = "hv")
+
 
 
 # Grand-average OM by different management practices
@@ -569,6 +626,72 @@ ggarrange(om_tillage + rremove("xlab"),
           om_irrigation + rremove("xlab"),
           om_cc + rremove("ylab") + rremove("y.text") + rremove("xlab"),
           common.legend = TRUE, labels = "auto", align = "hv")
+
+
+
+# Dissolve organic carbon
+doc <- read.csv("~/Desktop/GCS/GCS_git/Data/mbc_final_updated.csv")
+
+# averaging mbc data by field and sampling period
+doc_final <- doc %>% 
+  group_by(field, sampling.period, tillage, irrigation, fertilizer, crop_rotation, 
+           cover_crop, residue) %>% 
+  summarise(doc = mean(doc, na.rm = T),
+            gwc = mean(gwc, na.rm = T),
+            clay = mean(clay, na.rm = T))
+
+
+doc_final[, c(1:8)] <- lapply(doc_final[, c(1:8)], factor)
+
+doc_final$tillage <- factor(doc_final$tillage, 
+                            levels = c("no","minimal","yes"))
+doc_final$residue <- factor(doc_final$residue, 
+                            levels = c("none-low", "medium-high"))
+sapply(doc_final, class)
+
+boxplot(doc_final$doc)
+
+# removing outliers
+  
+doc_final <- remove_outliers(doc_final, "doc")
+
+boxplot(doc_final$doc)
+
+# OM model
+doc_model <- glmulti(doc ~ tillage + irrigation + fertilizer + crop_rotation +
+                      residue + cover_crop, random1 = "+(1|field)", 
+                    random2 = "+ (1|sampling.period)", data = doc_final,
+                    fitfunction = mixed_glmulti, level = 1, crit = "aicc")
+
+summary(doc_model)$bestmodel
+plot(doc_model) 
+# the models below the red line has the aic difference of less than 2.
+
+weightable(doc_model)[1:2,] # checking the relative weight of top models
+plot(doc_model, type = "s") # checking the importance of the predictors
+best_doc_model <- doc_model@objects[[1]] # extracting the best model
+
+Anova(best_doc_model)
+plot(best_doc_model)
+hist(residuals(best_doc_model))
+summary(best_doc_model)
+
+
+
+# doc model with continuous predictors
+
+
+doc_model_2 <- glmulti(doc ~ clay + gwc, random1 = "+(1|field)", 
+                      random2 = "+ (1|sampling.period)", data = doc_final,
+                      fitfunction = mixed_glmulti, level = 1, crit = "aicc")
+
+best_doc_model_2 <- doc_model_2@objects[[1]]
+Anova(best_doc_model_2)
+plot(best_doc_model_2)
+hist(residuals(best_doc_model_2))
+summary(best_doc_model_2)
+
+
 
 
 #########################
@@ -685,6 +808,8 @@ plot(best_mbc_model_2)
 hist(residuals(best_mbc_model_2))
 summary(best_mbc_model_2)
 
+
+
 ##########################################################
 # post hoc analysis to check the interaction effect between residue and gwc
 
@@ -692,6 +817,7 @@ mbc_int_gwc <- lmer(mbc ~ residue * gwc + (1|field) + (1|sampling.period),
                data = mbc_new)
 Anova(mbc_int_gwc)
 summary(mbc_int_gwc)
+r.squaredGLMM(mbc_int_gwc)
 
 (predict_plot_mbc_gwc <-plot_model(mbc_int_gwc, type = "pred",
                                   term = c("gwc", "residue")))
@@ -724,6 +850,7 @@ mbc_int_clay <- lmer(mbc ~ residue * clay + (1|field) + (1|sampling.period),
                     data = mbc_new)
 Anova(mbc_int_clay)
 summary(mbc_int_clay)
+r.squaredGLMM(mbc_int_clay)
 
 (predict_plot_mbc_clay <-plot_model(mbc_int_clay, type = "pred",
                                    term = c("clay", "residue")))
@@ -758,14 +885,41 @@ predict_data_mbc_clay <- as.data.frame(predict_plot_mbc_clay$data) %>%
            labels = "auto", align = "hv")
 
 
+# MBC to organic carbon ratio
+ 
+ mbc_final$mbc_oc_ratio <- ((mbc_final$mbc)/100)/((mbc_final$OM)*0.58)
+ 
+ boxplot(mbc_final$mbc_oc_ratio)
+ 
+ mbc_oc_data <- remove_outliers(mbc_final, "mbc_oc_ratio")
+ boxplot(mbc_oc_data$mbc_oc_ratio)
 
+ mbc_oc_ratio_model <- glmulti(log(mbc_oc_ratio) ~ clay + tillage + irrigation + fertilizer +
+                                 crop_rotation + residue + cover_crop,
+                               random1 = "+(1|field)", 
+                      random2 = "+ (1|sampling.period)", data = mbc_oc_data,
+                      fitfunction = mixed_glmulti, level = 1, crit = "aicc")
+ 
+ summary(mbc_oc_ratio_model)$bestmodel
+
+ best_mbc_oc_ratio_model <- mbc_oc_ratio_model@objects[[1]] # extracting the best model
+ 
+ Anova(best_mbc_oc_ratio_model)
+ plot(best_mbc_oc_ratio_model)
+ hist(residuals(best_mbc_oc_ratio_model))
+ summary(best_mbc_oc_ratio_model) 
+ 
+ emmeans(best_mbc_oc_ratio_model, ~cover_crop)
+ 
+ 
 ################################################################################
 # PCA of nutrients on fame dataset
 
 # averaging FAME data by field and sampling period
 
 fame_average <- fame_final %>% 
-  group_by(field, sampling.period,microbial.groups, tillage, irrigation, fertilizer, crop_rotation, 
+  group_by(field, sampling.period,microbial.groups, tillage, irrigation, fertilizer, 
+           crop_rotation, crop_type,
            cover_crop, residue) %>% 
   summarise(fame = mean(fame, na.rm = T),
             clay = mean(clay, na.rm = T),
@@ -785,7 +939,8 @@ fame_average <- fame_final %>%
             OM = mean(OM, na.rm = T),
             total.N = mean(total.N, na.rm = T))
 
-
+ 
+ 
 
 pca_fnutrients <- prcomp(fame_average[, nutrient_var], scale = TRUE)
 biplot(pca_fnutrients)
@@ -794,7 +949,6 @@ summary(pca_fnutrients)
 # extracting PC1 & PC2
 fame_average$PC1 <- pca_fnutrients$x[, 1]
 fame_average$PC2 <- pca_fnutrients$x[, 2]
-
 
 # total fame markers model
 # subset total fame
@@ -847,19 +1001,39 @@ plot(best_fame_model_2)
 hist(residuals(best_fame_model_2))
 summary(best_fame_model_2)
 
+
+# evaluate the effects of crop type  in rotation
+fame_rotation <- fame_average %>%
+  filter(crop_type %in% c("None", "corn", "sorghum", "cereals", "corn-cereals",
+                          "multispecies"))
+fame_rotation$crop_type <- factor(fame_rotation$crop_type, 
+                                       levels = c("None", "corn", "sorghum", "cereals", 
+                                                  "corn-cereals", "multispecies"))
+
+
+
+totalfame_rotation_model <- glmulti(log(fame) ~ tillage + irrigation + fertilizer + crop_type +
+                                residue + cover_crop, random1 = "+(1|field)", 
+                              random2 = "+ (1|sampling.period)",
+                              data = filter(fame_rotation, microbial.groups == "total.fame"),
+                              fitfunction = mixed_glmulti, level = 1, crit = "aicc")
+
+Anova(totalfame_rotation_model@objects[[1]])
+summary(totalfame_rotation_model@objects[[1]])
+
 # post hoc analysis to check the interaction effect between crop rotation and OM
 
 tfame_int_OM <- lmer(fame ~ crop_rotation * OM + (1|field) + (1|sampling.period),
                      data = total_fame)
 Anova(tfame_int_OM)
 summary(tfame_int_OM)
+r.squaredGLMM(tfame_int_OM)
 
-(predict_plot_tfame_OM <-plot_model(tfame_int_OM, type = "pred",
+(predict_plot_tfame_OM <- plot_model(tfame_int_OM, type = "pred",
                                     term = c("OM", "crop_rotation")))
 
 predict_data_tfame_OM <- as.data.frame(predict_plot_tfame_OM$data) %>%
   rename(crop_rotation = group)
-
 
 
 # OM and fame graph
@@ -888,14 +1062,13 @@ tfame_int_gwc <- lmer(fame ~ crop_rotation * gwc + (1|field) + (1|sampling.perio
                      data = total_fame)
 Anova(tfame_int_gwc)
 summary(tfame_int_gwc)
+r.squaredGLMM(tfame_int_gwc)
 
 (predict_plot_tfame_gwc <-plot_model(tfame_int_gwc, type = "pred",
                                     term = c("gwc", "crop_rotation")))
 
 predict_data_tfame_gwc <- as.data.frame(predict_plot_tfame_gwc$data) %>%
   rename(crop_rotation = group)
-
-
 
 
 # total fame and gwc
@@ -971,6 +1144,18 @@ hist(residuals(best_bacteria_model_2))
 summary(best_bacteria_model_2)
 
 
+# evaluate the effects of crop type  in rotation
+
+bacteria_rotation_model <- glmulti(log(fame) ~ tillage + irrigation + fertilizer + crop_type +
+                                residue + cover_crop, random1 = "+(1|field)", 
+                              random2 = "+ (1|sampling.period)",
+                              data = filter(fame_rotation, microbial.groups == "BactSum"),
+                              fitfunction = mixed_glmulti, level = 1, crit = "aicc")
+
+Anova(bacteria_rotation_model@objects[[1]])
+summary(bacteria_rotation_model@objects[[1]])
+
+emmeans(bacteria_rotation_model@objects[[1]], ~ crop_type)
 
 # post hoc analysis to check the interaction effect between crop rotation and clay
 
@@ -978,6 +1163,7 @@ bacteria_int_OM <- lmer(fame ~ crop_rotation * OM + (1|field) + (1|sampling.peri
                      data = bacteria_fame)
 Anova(bacteria_int_OM)
 summary(bacteria_int_OM)
+r.squaredGLMM(bacteria_int_OM)
 
 (predict_plot_bacteria_OM <-plot_model(bacteria_int_OM, type = "pred",
                                     term = c("OM", "crop_rotation")))
@@ -1000,10 +1186,9 @@ predict_data_bacteria_OM <- as.data.frame(predict_plot_bacteria_OM$data) %>%
   scale_shape_manual(labels =  c("No-till", "Minimal-till","Till"),
                        values = c(15, 16, 17)) +
   labs(y = expression("Bacterial FAME (nmol" *~g^-1*")"),
-       x = "Organic Matter (%)" ) +
+       x = "Organic Matter (%)") +
   theme +
   theme(legend.position = "top"))
-
 
 
 #################################################
@@ -1055,12 +1240,28 @@ hist(residuals(best_fungi_model_2))
 summary(best_fungi_model_2)
 
 
+
+# evaluate the effects of crop type  in rotation
+
+fungi_rotation_model <- glmulti(log(fame) ~ tillage + irrigation + fertilizer + crop_type +
+                                residue + cover_crop, random1 = "+(1|field)", 
+                              random2 = "+ (1|sampling.period)", 
+                              data = filter(fame_rotation, microbial.groups == "FungSum"),
+                              fitfunction = mixed_glmulti, level = 1, crit = "aicc")
+
+
+Anova(fungi_rotation_model@objects[[1]])
+summary(fungi_rotation_model@objects[[1]])
+
+emmeans(fungi_rotation_model@objects[[1]], ~ crop_type)
+
 # post hoc analysis to check the interaction effect between crop_rotation and OM
 
 fungi_int_OM <- lmer(fame ~ crop_rotation* OM + (1|field) + (1|sampling.period),
                      data = fungi_fame)
 Anova(fungi_int_OM)
 summary(fungi_int_OM)
+r.squaredGLMM(fungi_int_OM)
 
 (predict_plot_fungi_OM <-plot_model(fungi_int_OM, type = "pred",
                                     term = c("OM", "crop_rotation")))
@@ -1096,6 +1297,7 @@ fungi_int_gwc <- lmer(fame ~ crop_rotation * gwc + (1|field) + (1|sampling.perio
                      data = fungi_fame)
 Anova(fungi_int_gwc)
 summary(fungi_int_gwc)
+r.squaredGLMM(fungi_int_gwc)
 
 (predict_plot_fungi_gwc <-plot_model(fungi_int_gwc, type = "pred",
                                     term = c("gwc", "crop_rotation")))
@@ -1146,7 +1348,7 @@ fame_new$microbial.groups <- factor(fame_new$microbial.groups,
                                                ))
 # renaming the levels                                   
 levels(fame_new$microbial.groups) <-  c("Bacteria", "G+ Bacteria", 
-                                        "G- Bacteria","Actinomycetes", "Fungi",
+                                        "G- Bacteria","Actinobacteria", "Fungi",
                                         "Saprophytic Fungi", "AMF", "Protozoa",
                                         "FB Ratio", "Total FAME")
 
@@ -1204,12 +1406,27 @@ plot(best_AMF_model_2)
 hist(residuals(best_AMF_model_2))
 summary(best_AMF_model_2)
 
+
+# evaluate the effects of crop type  in rotation
+
+AMF_rotation_model <- glmulti(log(fame) ~ tillage + irrigation + fertilizer + crop_type +
+                                residue + cover_crop, random1 = "+(1|field)", 
+                              random2 = "+ (1|sampling.period)", 
+                              data = filter(fame_rotation, microbial.groups == "AMF"),
+                              fitfunction = mixed_glmulti, level = 1, crit = "aicc")
+
+Anova(AMF_rotation_model@objects[[1]])
+summary(AMF_rotation_model@objects[[1]])
+ # have no significant effects
+
+
 # post hoc analysis to check the interaction effect between crop_rotation and gwc
 
 AMF_int_gwc <- lmer(fame ~ crop_rotation * gwc + (1|field) + (1|sampling.period),
                      data = AMF_fame)
 Anova(AMF_int_gwc)
 summary(AMF_int_gwc)
+r.squaredGLMM(AMF_int_gwc)
 
 (predict_plot_AMF_gwc <-plot_model(AMF_int_gwc, type = "pred",
                                     term = c("gwc", "crop_rotation")))
@@ -1294,7 +1511,7 @@ summary(fbr_model)
 fame_new <- fame %>% 
   na.omit()
 
-nmds_data <- fame_new [, c(13:15, 17:22)]
+nmds_data <- fame_new [, c(14:16, 18:23)]
 
 # converting data into matrix
 nmds_matrix <- as.matrix(nmds_data)
@@ -1322,7 +1539,7 @@ nmds_scores$residue <- fame_new$residue
 # extracting loadings vectors
 
 nmds_loadings <- as.data.frame(scores(nmds_result)$species)
-nmds_loadings$groups <- c("Protozoa", "Bacteria", "Fungi", "G+","G-", "Actinomycetes",
+nmds_loadings$groups <- c("Protozoa", "Bacteria", "Fungi", "G+","G-", "Actinobacteria",
                           "Saprophytes", "AMF", "Total FAME")
 
 
@@ -1427,6 +1644,59 @@ adonis_result <- adonis2(nmds_data ~ fame_new$tillage + fame_new$irrigation +
 adonis_result
 
 
+# relative abundances of different microbial groups
+
+relative_abundances <- fame %>%
+  select(c(1:11, 14:23))
+  
+relative_abundances$r_protozoa <- (relative_abundances$protozoa)/(relative_abundances$total.fame)
+relative_abundances$r_Gneg <- (relative_abundances$GNegSum)/(relative_abundances$total.fame)
+relative_abundances$r_GPos <- (relative_abundances$GPosSum)/(relative_abundances$total.fame)
+relative_abundances$r_ActB <- (relative_abundances$ActSum)/(relative_abundances$total.fame)
+relative_abundances$r_sap <- (relative_abundances$SapSum)/(relative_abundances$total.fame)
+relative_abundances$r_AMF <- (relative_abundances$AMF)/(relative_abundances$total.fame)
+relative_abundances$r_others <- ((relative_abundances$total.fame) -(relative_abundances$protozoa)-
+                                   (relative_abundances$BactSum) - (relative_abundances$FungSum))/(relative_abundances$total.fame)
+
+
+relative_abundances <- relative_abundances %>%
+  select(c(1:11, 22:28))
+
+relative_abundances_final <- relative_abundances %>%
+  pivot_longer(c(12:18),
+               names_to = "microbial.groups",
+               values_to = "relative_abundances",
+               values_drop_na = TRUE)
+  
+relative_abundances_avg <- relative_abundances_final %>%
+  group_by(tillage, irrigation, microbial.groups) %>% 
+  summarize(r_abundances = mean(relative_abundances))
+
+relative_abundances_avg$microbial.groups <- factor(relative_abundances_avg$microbial.groups,
+                                                   levels = c("r_ActB", "r_Gneg", "r_GPos",
+                                                              "r_AMF", "r_sap", "r_protozoa",
+                                                             "r_others"))
+
+# renaming the levels                                   
+levels(relative_abundances_avg$microbial.groups) <-  c("Actinobacteria", 
+                                        "G- Bacteria","G+ Bacteria", "AMF",
+                                        "Saprophytes", "Protozoa", "Others")
+relative_abundances_avg$tillage <- factor(relative_abundances_avg$tillage, 
+                            levels = c("no","minimal","yes"))
+
+(relative_abundance_plot <-
+    ggplot(relative_abundances_avg, aes(tillage, r_abundances,
+                                        fill = microbial.groups)) +
+      geom_col(position = "stack", width = 0.5) +
+      facet_wrap(~ irrigation, labeller = labeller(irrigation = c("no" = "Dryland",
+                                                                  "yes" = "Irrigated"))) +
+    scale_fill_brewer(palette = "Set2") +
+    scale_x_discrete(labels = c("No-till", "Minimal-till", "Till")) +
+      labs(y = "Relative Abundances") +
+    theme +
+    theme(axis.title.x = element_blank()))
+
+
 
 # Graphs for the paper
 setwd("~/Desktop/GCS/graphs/")
@@ -1490,8 +1760,8 @@ mbc_combined <-
 
 S4 <- ggsave("S4.pdf", mbc_combined, dpi = 300, width = 12, height = 6 ,
              units = "in", device = "pdf")
-
-
+S5 <- ggsave("S5.pdf", relative_abundance_plot, dpi = 300, width = 8, height = 6 ,
+             units = "in", device = "pdf")
 
 # plotiing tillage crop rotation interaction for OM
 
@@ -1508,10 +1778,10 @@ till <- nutrients_final %>%
 (a <- ggplot(as.data.frame(emmeans(cr_model, ~ crop_rotation)), 
              aes(crop_rotation, emmean)) +
     geom_violin(data = no_till, aes(x = crop_rotation, y = OM)) +
-    geom_point(size = 3) +
-    geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2) +
+    geom_point(size = 4) +
+    geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.1, linewidth = 1) +
     scale_x_discrete(labels = c("Continuous Cotton", "Crop Rotation")) +
-    labs(y = "Soil organic matter (%)",
+    labs(y = "Organic matter (%)",
          x = "Crop Rotation") +
     annotate(geom="text", x= 1.2, y= 2.5, label="No-till", size = 6, fontface = "bold") +
     theme)
@@ -1520,15 +1790,17 @@ till <- nutrients_final %>%
 
 cr_model2 <- lmer(OM ~ crop_rotation + (1|field) + (1|sampling.period),
                   data = till)
+
+Anova(cr_model2)
 summary(cr_model2)
 
 (b <- ggplot(as.data.frame(emmeans(cr_model2, ~ crop_rotation)), 
              aes(crop_rotation, emmean)) +
     geom_violin(data = till, aes(x = crop_rotation, y = OM)) +
-    geom_point(size = 3) +
-    geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2) +
+    geom_point(size = 4) +
+    geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.1, linewidth = 1) +
     scale_x_discrete(labels = c("Continuous Cotton", "Crop Rotation")) +
-    labs(y = "Soil organic matter (%)",
+    labs(y = "organic matter (%)",
          x = "Crop Rotation") +
     annotate(geom="text", x= 1.2, y= 2.5, label="Minimal-till or till", size = 6, fontface = "bold") +
     theme)
