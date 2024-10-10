@@ -334,10 +334,16 @@ theme <- theme_bw() +
         panel.border = element_rect(linewidth  = 1))
 
 # VWC by tillage 
+monthly.avg_new <- 
+  daily.avg %>%
+  group_by(field, depth, measurement, month, tillage, irrigated, fertilizer, crop.rotation, residue, cover.crop) %>%
+  summarise(mean.value = mean(mean.value), min.value = mean(min.value), max.value = mean(max.value), range = mean(range), nDays = length(unique(day)))
 
-monthly.avg.VWC <- monthly.avg %>% 
+
+monthly.avg.VWC <- monthly.avg_new %>% 
   filter(measurement == "VWC") %>% 
   filter(month %in% c(6, 7,8, 9))
+
 
 VWC.tillage <- monthly.avg.VWC %>% 
   filter(tillage != "NA") %>% 
@@ -350,8 +356,14 @@ VWC.tillage$tillage <-factor( VWC.tillage$tillage,
                               levels =  c("no-till", "minimal till", "tillage"))
 
 (a <- ggplot(VWC.tillage, aes(month, mean.VWC)) +
-  geom_point(aes(shape = tillage), size = 2) +
+  geom_point(aes(shape = tillage), size = 1) +
   geom_line(aes(lty = tillage), linewidth = 1) +
+  geom_text(data = subset(VWC.tillage, tillage == "minimal till"),
+              aes(label = n), vjust = 2, size = 3, hjust = 0.5) +
+  geom_text(data = subset(VWC.tillage, tillage == "no-till"),
+              aes(label = n), vjust = -1.0, size = 3, hjust = 0.5) +
+  geom_text(data = subset(VWC.tillage, tillage == "tillage"),
+              aes(label = n), vjust = -1.0, size = 3, hjust = 0.5) +
   geom_errorbar(aes(ymin = mean.VWC - se,
                     ymax = mean.VWC + se), width = 0.05) +
   facet_wrap(~ depth, ncol = 1,
@@ -362,7 +374,7 @@ VWC.tillage$tillage <-factor( VWC.tillage$tillage,
                         values = c(1,3,5)) +
   labs(x = "Months", y = expression("VWC ("*m^3/m^3*")")) +
   scale_x_continuous(labels = c("Jun", "July", "Aug", "Sep")) +
-  scale_y_continuous(limits = c(0.05, 0.25)) +
+  scale_y_continuous(limits = c(0.05, 0.28)) +
   theme +
   theme(legend.position = "top"))
 
@@ -377,8 +389,12 @@ VWC.cr <- monthly.avg.VWC %>%
 
 
 (b <- ggplot(VWC.cr, aes(month, mean.VWC, color = crop.rotation)) +
-  geom_point(size = 2) +
+  geom_point(size = 1) +
   geom_line(linewidth = 1) +
+    geom_text(data = subset(VWC.cr, crop.rotation == "Continuous cotton"),
+              aes(label = n), vjust = 2, size = 3, hjust = 0.5) +
+    geom_text(data = subset(VWC.cr, crop.rotation == "Crop rotation"),
+              aes(label = n), vjust = -1.5, size = 3, hjust = 0.5) +
   geom_errorbar(aes(ymin = mean.VWC - se,
                       ymax = mean.VWC + se), width = 0.05) +
   facet_wrap(~ depth, ncol = 1,
@@ -401,8 +417,12 @@ VWC.irrigation <- monthly.avg.VWC %>%
             se = sd(mean.value)/sqrt(n))
 
 (c <- ggplot(VWC.irrigation, aes(month, mean.VWC, color = irrigated)) +
-  geom_point(size = 2, alpha = 0.8) +
+  geom_point(size = 1, alpha = 0.8) +
   geom_line(linewidth = 1, alpha = 0.8) +
+  geom_text(data = subset(VWC.irrigation, irrigated == "Dryland"),
+            aes(label = n), vjust = 2, size = 3, hjust = 0.5) +
+  geom_text(data = subset(VWC.irrigation, irrigated == "Irrigated"),
+              aes(label = n), vjust = -1.5, size = 3, hjust = 0.5) +
   geom_errorbar(aes(ymin = mean.VWC - se,
                       ymax = mean.VWC + se), width = 0.05) +
   facet_wrap(~ depth, ncol =1,
@@ -444,7 +464,7 @@ VWC.irrigation <- monthly.avg.VWC %>%
 
 setwd("~/Desktop/GCS/")
 
-Fig_3 <- ggsave("Fig3.pdf", VWC_combined, dpi = 300, width = 15, height = 6 ,
+Fig_3 <- ggsave("Fig3.pdf", VWC_combined, dpi = 300, width = 12, height = 6 ,
                 units = "in", device = "pdf")
 Fig_S1 <- ggsave("S1.pdf", Dtr, dpi = 300, width = 12, height = 6 ,
                 units = "in", device = "pdf")

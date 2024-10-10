@@ -15,6 +15,7 @@ library(vegan)
 library(sjPlot)
 library(ggordiplots)
 library(MuMIn)
+library(party)
 
 ##########################
 # wrapper function for glmulti
@@ -36,6 +37,30 @@ return(new_data)
 }
 
 
+# variable importance function (random forest)
+
+var_imp_function <- function (data, formula) {
+  
+  cforest <- cforest(formula,
+                     data = data,
+                     controls = (cforest_control(ntree = 1000, replace = TRUE)))
+  
+  varimp <- varimp(cforest)
+  plot(varimp)
+  ranked.importance <- as.data.frame(sort(varimp, decreasing = TRUE))
+  names(ranked.importance) <- "index"
+  ranked.importance$predictor <- row.names(ranked.importance)
+  ranked.importance$predictor <- factor(ranked.importance$predictor,
+                                        levels = ranked.importance$predictor[order(ranked.importance$index)])
+  plot <- ggplot(ranked.importance, aes(x = predictor, y = index)) +
+    geom_bar(stat = "identity", fill = "blue", col = "black") +
+    labs(y = "Index", x = "Predictors") +
+    coord_flip() +
+    theme_bw()
+  return(plot) 
+}
+
+
 # custom theme for plots
 theme <- theme_bw() + 
   theme(panel.grid = element_blank(),
@@ -46,6 +71,7 @@ theme <- theme_bw() +
         axis.title = element_text(size = 16),
         axis.text = element_text(size = 14),
         panel.border = element_rect(linewidth  = 2))
+
 
 #######################################
 # Data import and cleaning
@@ -88,7 +114,7 @@ mbc_final <- mbc_final %>%
             total.N = mean(total.N, na.rm = T))
 
 
-mbc_final[, c(1:8)] <- lapply(mbc_final[, c(1:8)], factor)
+mbc_final[, c(1:9)] <- lapply(mbc_final[, c(1:9)], factor)
 
 mbc_final$tillage <- factor(mbc_final$tillage, 
                             levels = c("no","minimal","yes"))
@@ -110,7 +136,7 @@ fame_final <- fame%>%
                values_drop_na = TRUE) %>% 
   relocate(microbial.groups, .before = "tillage")
 
-fame_final[, c(2, 4:11)] <- lapply(fame_final[,c(2, 4:11)], factor)
+fame_final[, c(2, 5:12)] <- lapply(fame_final[,c(2, 5:12)], factor)
 fame_final$tillage <- factor(fame_final$tillage, 
                             levels = c("no","minimal","yes"))
 fame_final$residue <- factor(fame_final$residue, 
@@ -192,6 +218,14 @@ predict_data_gwc <- as.data.frame(predict_plot_gwc$data) %>%
   rename(crop_rotation = group)
 
 
+# random forest to show the variable importance
+formula_gwc <- as.formula(paste("gwc ~ tillage + irrigation + fertilizer + crop_rotation +
+                                      residue + cover_crop + clay"))
+
+gwc_cforest <- var_imp_function(mbc_final, formula_gwc)
+gwc_cforest <- gwc_cforest +
+  scale_x_discrete(labels = c("Fertilizer", "Cover Crop", "Tillage", "Crop Rotation",
+                              "Residue", "Irrigation", "Clay"))
 
 # GWC-clay graph
 
@@ -498,6 +532,16 @@ predict_data_OM_clay <- as.data.frame(predict_plot_OM_clay$data) %>%
   rename(crop_rotation = group)
 
 
+# random forest to show the variable importance
+formula_om <- as.formula(paste("OM ~ tillage + irrigation + fertilizer + crop_rotation +
+                                      residue + cover_crop + clay + gwc"))
+
+OM_cforest <- var_imp_function(nutrients_final, formula_om)
+
+OM_cforest <- OM_cforest +
+  scale_x_discrete(labels = c("Fertilizer", "Cover Crop", "Residue", "Irrigation",
+                              "Crop Rotation", "Tillage", "GWC", "Clay"))
+
 # OM-clay graph
 
 (OM_clay <- ggplot(nutrients_final, aes(clay, OM, color = crop_rotation)) +
@@ -692,7 +736,15 @@ hist(residuals(best_doc_model_2))
 summary(best_doc_model_2)
 
 
+# random forest to show the variable importance
+formula_doc <- as.formula(paste("doc ~ tillage + irrigation + fertilizer + crop_rotation +
+                                      residue + cover_crop + clay"))
 
+doc_cforest <- var_imp_function(doc_final, formula_doc)
+
+doc_cforest <- doc_cforest +
+  scale_x_discrete(labels = c("Fertilizer", "Cover Crop", "Crop Rotation", "Clay",
+                              "Tillage", "Irrigation", "Residue"))
 
 #########################
 # PCA of nutrients
@@ -799,6 +851,7 @@ mbc_model_2 <- glmulti(log.mbc ~ clay + pH + OM + total.N + PC1 + PC2 + gwc,
                      fitfunction = mixed_glmulti, level = 1, crit = "aicc")
 
 
+
 summary(mbc_model_2)$bestmodel
 plot(mbc_model_2) 
 
@@ -809,6 +862,16 @@ hist(residuals(best_mbc_model_2))
 summary(best_mbc_model_2)
 
 
+# random forest to show the variable importance
+formula_mbc <- as.formula(paste("mbc ~ tillage + irrigation + fertilizer + crop_rotation +
+                                      residue + cover_crop + clay + OM + total.N +
+                                pH"))
+
+mbc_cforest <- var_imp_function(mbc_new, formula_mbc)
+
+mbc_cforest <- mbc_cforest +
+  scale_x_discrete(labels = c("pH", "Clay", "Total N", "Cover Crop", "Crop Rotation",
+                             "Tillage", "Irrigation", "Residue", "Fertilizer", "OM"))
 
 ##########################################################
 # post hoc analysis to check the interaction effect between residue and gwc
@@ -982,11 +1045,6 @@ contrast(emmeans(best_fame_model, ~ tillage), interaction = "pairwise")
 # total fame with continuous predictors
 
 
-
-total_fame %>%
-  group_by(crop_rotation) %>% 
-  summarize(mean = mean(fame))
-
 total_fame_model_2 <- glmulti(log(fame) ~ clay + OM + pH + total.N + gwc + PC1 + PC2,
                               random1 = "+(1|field)", 
                               random2 = "+ (1|sampling.period)", data = total_fame,
@@ -1035,6 +1093,16 @@ r.squaredGLMM(tfame_int_OM)
 predict_data_tfame_OM <- as.data.frame(predict_plot_tfame_OM$data) %>%
   rename(crop_rotation = group)
 
+
+# random forest to show the variable importance
+formula_fame <- as.formula(paste("fame ~ tillage + irrigation + fertilizer + crop_rotation +
+                                      residue + cover_crop + clay + OM + total.N +
+                                pH"))
+
+tfame_cforest <- var_imp_function(total_fame, formula_fame)
+tfame_cforest <- tfame_cforest +
+  scale_x_discrete(labels = c("Total N", "pH", "Fertilizer", "Residue", "Cover Crop",
+                              "Tillage", "Crop Rotation", "Irrigation", "Clay", "OM"))
 
 # OM and fame graph
 
@@ -1144,6 +1212,15 @@ hist(residuals(best_bacteria_model_2))
 summary(best_bacteria_model_2)
 
 
+
+# random forest to show the variable importance
+bacteria_cforest <- var_imp_function(bacteria_fame, formula_fame)
+
+bacteria_cforest <- bacteria_cforest +
+  scale_x_discrete(labels = c("Total N", "pH", "Fertilizer", "Irrigation", "Residue",
+                              "Cover Crop", "Tillage", "Crop Rotation", "Clay", "OM"))
+
+
 # evaluate the effects of crop type  in rotation
 
 bacteria_rotation_model <- glmulti(log(fame) ~ tillage + irrigation + fertilizer + crop_type +
@@ -1240,6 +1317,14 @@ hist(residuals(best_fungi_model_2))
 summary(best_fungi_model_2)
 
 
+
+
+# random forest to show the variable importance
+fungi_cforest <- var_imp_function(fungi_fame, formula_fame)
+
+fungi_cforest <- fungi_cforest +
+  scale_x_discrete(labels = c("pH", "Fertilizer", "Total N", "Residue", "Tillage",
+                              "Cover Crop", "Irrigation", "Clay", "Crop Rotation", "OM"))
 
 # evaluate the effects of crop type  in rotation
 
@@ -1405,6 +1490,15 @@ Anova(best_AMF_model_2)
 plot(best_AMF_model_2)
 hist(residuals(best_AMF_model_2))
 summary(best_AMF_model_2)
+
+
+
+# random forest to show the variable importance
+AMF_cforest <- var_imp_function(AMF_fame, formula_fame)
+
+AMF_cforest <- AMF_cforest +
+  scale_x_discrete(labels = c("Fertilizer", "pH", "Residue", "Total N", "Tillage", 
+                              "Clay", "Crop Rotation", "Cover Crop", "Irrigation", "OM"))
 
 
 # evaluate the effects of crop type  in rotation
@@ -1762,6 +1856,23 @@ S4 <- ggsave("S4.pdf", mbc_combined, dpi = 300, width = 12, height = 6 ,
              units = "in", device = "pdf")
 S5 <- ggsave("S5.pdf", relative_abundance_plot, dpi = 300, width = 8, height = 6 ,
              units = "in", device = "pdf")
+
+(cforest_graphs <- ggarrange(gwc_cforest + rremove("xlab"),
+                            OM_cforest + rremove("ylab") + rremove("xlab"), 
+                            doc_cforest + rremove("xlab"),
+                            mbc_cforest + rremove("ylab") + rremove("xlab"),
+                            tfame_cforest + rremove("xlab"),
+                            bacteria_cforest + rremove("ylab") + rremove("xlab"),
+                            fungi_cforest,
+                            AMF_cforest + rremove("ylab"),
+                            labels = "auto",
+                            ncol = 2,
+                            nrow = 4))
+
+S6 <- ggsave("S6.pdf", cforest_graphs, dpi = 300, width = 12, height = 12 ,
+             units = "in", device = "pdf")
+
+
 
 # plotiing tillage crop rotation interaction for OM
 
